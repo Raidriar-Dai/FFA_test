@@ -1,124 +1,58 @@
 import torch
 import torch.nn as nn
-from tqdm import tqdm
-from torch.optim import Adam, AdamW
-from torchvision.datasets import MNIST
-from torchvision.transforms import Compose, ToTensor, Normalize, Lambda
-from torch.utils.data import DataLoader
+from data_load import MNIST_loaders
+from data_overlay import overlay_y_on_x
+from full_linear_net import Net
+
+import wandb
+sweep_config = {
+    'method': 'random',
+    'metric': {'name': 'test_error', 'goal': 'minimize'}
+}
+parameters_dict = {
+    'lr': {
+        'values': [0.01, 0.02, 0.03]
+    },
+    'threshold': {
+        'values': [1.0, 2.0, 3.0]
+    },
+    'num_epochs':{
+        'values': [1000, 1500, 2000]
+    },
+    'batch_size':{
+        'value': 50000
+    },
+    'seed':{
+        'value': 1234
+    },
+    'dims':{
+        'value': [784, 500, 500]
+    }
+}
+sweep_config['parameters'] = parameters_dict
+
 
 # 3.3 A simple supervised example of FF
 
-def MNIST_loaders(train_batch_size=50000, test_batch_size=10000):
+def training_one_run():
+    # lr=0.03, threshold=2.0, num_epochs=1000, batch_size=50000, seed=1234, dims=[784, 500, 500]
 
-    transform = Compose([
-        # change image to tensor;
-        ToTensor(),
-        # Normalize the image by subtracting a known mean and standard deviation;
-        Normalize((0.1307,), (0.3081,)),
-        # flatten the image;
-        Lambda(lambda x: torch.flatten(x))])
+    wandb.init(project="FFA_test1", entity="raidriar_dai")
+    # config = {"lr": lr, "threshold": threshold, "num_epochs": num_epochs,
+    #            "batch_size": batch_size, "seed": seed, "dims": dims})
 
-    train_loader = DataLoader(
-        MNIST('./data/', train=True,
-              download=True,
-              transform=transform),
-        batch_size=train_batch_size, shuffle=True)
+    # define hyper-parameters from `wandb.config`
+    seed = wandb.config.seed
+    batch_size = wandb.config.batch_size
+    dims = wandb.config.dims
+    lr = wandb.config.lr
+    threshold = wandb.config.threshold
+    num_epochs = wandb.config.num_epochs
 
-    test_loader = DataLoader(
-        MNIST('./data/', train=False,
-              download=True,
-              transform=transform),
-        batch_size=test_batch_size, shuffle=False)
+    torch.manual_seed(seed)
+    train_loader, test_loader = MNIST_loaders(train_batch_size=batch_size)
 
-    return train_loader, test_loader
-
-
-# For x: 0_th dimension：Sample Size; 1_st dimension：Flattened Features
-# y is a scaler: 0 <= y <= 9
-# Cover each row of x (each sample in x) with the same label,
-# by writing x.max() into the position which corresponds to the label value.
-def overlay_y_on_x(x, y):
-    x_ = x.clone()
-    x_[:, :10] *= 0.0   # REPLACE the first 10 pixels by the label representation.
-    x_[range(x.shape[0]), y] = x.max()
-    return x_
-
-
-class Net(torch.nn.Module):
-
-    def __init__(self, dims):
-        super().__init__()
-        self.layers = []
-        for d in range(len(dims) - 1):
-            self.layers += [Layer(dims[d], dims[d + 1]).cuda()]
-
-    def predict(self, x):
-        goodness_per_label = []
-        # Iterate over all the 10 labels and find the one with highest accumulated goodness.
-        for label in range(10):
-            h = overlay_y_on_x(x, label)
-            goodness = []
-            for layer in self.layers:
-                h = layer(h)
-                goodness += [h.pow(2).mean(1)]
-            goodness_per_label += [sum(goodness).unsqueeze(1)]
-        goodness_per_label = torch.cat(goodness_per_label, 1)
-        # return the index of the label with maximum accumulated goodness for each sample,
-        # as the final prediction for all testing samples.
-        return goodness_per_label.argmax(1)
-
-    def train(self, x_pos, x_neg):
-        h_pos, h_neg = x_pos, x_neg
-        for i, layer in enumerate(self.layers):
-            print('training layer', i, '...')
-            h_pos, h_neg = layer.train(h_pos, h_neg)
-
-
-# All the hyper-parameters are determined by Layer.
-# The concrete implementation of Forward and Train are also implemented in Layer.
-class Layer(nn.Linear):
-    def __init__(self, in_features, out_features,
-                 bias=True, device=None, dtype=None):
-        super().__init__(in_features, out_features, bias, device, dtype)
-        self.relu = torch.nn.ReLU()
-        self.opt = AdamW(self.parameters(), lr=0.03)
-        self.threshold = 2.0
-        self.num_epochs = 1000
-
-    def forward(self, x):
-        # normalize the input x (Chapter 2.1 in the original paper)
-        # Why an additional 1e-4 ?
-        x_direction = x / (x.norm(2, 1, keepdim=True) + 1e-4)
-        return self.relu(
-            torch.mm(x_direction, self.weight.T) +
-            self.bias.unsqueeze(0))
-        # Unsqueeze here: expand a new dimension of size 1; then apply broadcasting mechanism in the addition.
-
-    def train(self, x_pos, x_neg):
-        for i in tqdm(range(self.num_epochs)):
-            # positive forward pass for each layer.
-            g_pos = self.forward(x_pos).pow(2).mean(1)
-            # negative forward pass for each layer
-            g_neg = self.forward(x_neg).pow(2).mean(1)
-            # The following loss pushes pos (neg) samples to
-            # values larger (smaller) than the self.threshold.
-            loss = torch.log(1 + torch.exp(torch.cat([
-                -g_pos + self.threshold,
-                g_neg - self.threshold]))).mean()   # calculate the mean of all elements in the resulting tensor
-            self.opt.zero_grad()
-            # this backward just compute the derivative and hence
-            # is not considered backpropagation.
-            # Update the parameter layer by layer respectively.
-            loss.backward()
-            self.opt.step()
-        return self.forward(x_pos).detach(), self.forward(x_neg).detach()
-
-if __name__ == "__main__":
-
-    torch.manual_seed(3241)
-    train_loader, test_loader = MNIST_loaders()
-
-    net = Net([784, 500, 500])
+    net = Net(dims, lr, threshold, num_epochs)
     x, y = next(iter(train_loader))
     x, y = x.cuda(), y.cuda()
     # Generate positive data and negative data
@@ -126,11 +60,20 @@ if __name__ == "__main__":
     rnd = torch.randperm(x.size(0))
     x_neg = overlay_y_on_x(x, y[rnd])
 
-    net.train(x_pos, x_neg)
+    net.forward_train(x_pos, x_neg)
 
-    print('train error:', 1.0 - net.predict(x).eq(y).float().mean().item())
+    train_error = 1.0 - net.predict(x).eq(y).float().mean().item()
+    print('train error:', train_error)
 
     x_te, y_te = next(iter(test_loader))
     x_te, y_te = x_te.cuda(), y_te.cuda()
+    test_error = 1.0 - net.predict(x_te).eq(y_te).float().mean().item()
+    print('test error:', test_error)
 
-    print('test error:', 1.0 - net.predict(x_te).eq(y_te).float().mean().item())
+    wandb.log({"train_error": train_error, "test_error": test_error})
+
+sweep_id = wandb.sweep(sweep_config, project="FFA_test1")
+wandb.agent(sweep_id, function=training_one_run, count=1)
+
+
+
