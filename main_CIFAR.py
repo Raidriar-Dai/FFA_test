@@ -5,84 +5,17 @@ from data_overlay import overlay_y_on_x
 from full_linear_net import CIFAR_Net
 
 import wandb
-sweep_config = {
-    'method': 'random',
-    'metric': {'name': 'test_error', 'goal': 'minimize'}
-}
-parameters_dict = {
-    "lr": {
-        'max': 0.4,
-        'min': 0.3
-    },
-    'threshold': {
-        'values': [2.0, 3.0, 4.0]
-    },
-    'num_epochs':{
-        'values': [1000, 1500, 2000]
-    },
-    'weight_decay':{
-        'max': 0.03,
-        'min': 0.005
-    },
-    'dropout':{
-        'max': 0.3,
-        'min': 0.2
-    },
-    'batch_size':{
-        'values': [2500, 5000, 8000]
-    },
-    'seed':{
-        'value': 1234
-    },
-    'dims':{
-        'values': [[3072, 1000, 1000], [3072, 1000, 1000, 1000], [3072, 2000, 2000]]
-    }
-}
-
-# The parameter_dict of default settings
-# parameters_dict = {
-#     "lr": {
-#         'value': 0.03
-#     },
-#     'threshold': {
-#         'value': 2.0
-#     },
-#     'num_epochs':{
-#         'value': 1000
-#     },
-#     'weight_decay':{
-#         'value': 0.01
-#     },
-#     'dropout':{
-#         'value': 0.25
-#     },
-#     'batch_size':{
-#         'value': 5000
-#     },
-#     'seed':{
-#         'value': 1234
-#     },
-#     'dims':{
-#         'value': [3072, 1000, 1000, 1000]
-#     }
-# }
-
-sweep_config['parameters'] = parameters_dict
-
+import yaml
 
 # 4 Experiments with CIFAR-10
 
 def training_one_run():
-    # lr=0.03, threshold=2.0, num_epochs=1000, weight_decay=0.01, dropout=0.25,
-    # batch_size=5000, seed=1234, dims=[3072, 1000, 1000, 1000]
+    with open('./config.yaml') as file:
+        config = yaml.load(file, Loader=yaml.FullLoader)
 
-    wandb.init(project="FFA_test1", entity="raidriar_dai")
-    # config = {"lr": lr, "threshold": threshold, "num_epochs": num_epochs,
-    #            "weight_decay": weight_decay, "dropout": dropout,
-    #            "batch_size": batch_size, "seed": seed, "dims": dims}
+    wandb.init(project="FFA_test1", entity="raidriar_dai", config=config)
 
     # define hyper_parameters from wandb.config
-    seed = wandb.config.seed
     batch_size = wandb.config.batch_size
     dims = wandb.config.dims
     lr = wandb.config.lr
@@ -92,7 +25,7 @@ def training_one_run():
     dropout = wandb.config.dropout
 
     # start sweeping with pre-defined hyper_parameters
-    torch.manual_seed(seed)
+    torch.manual_seed(1234)
     train_loader, test_loader = CIFAR_loaders(train_batch_size = batch_size)
     num_batches = len(train_loader)
 
@@ -114,7 +47,10 @@ def training_one_run():
         batch_error = 1.0 - net.predict(x).eq(y).float().mean().item()
         average_train_error.append(batch_error)
         # WANDB: logging training error of each batch
-        wandb.log({"batch_error": batch_error})
+        wandb.log({
+            "batch": i+1, 
+            "batch_error": batch_error
+            })
     average_train_error = sum(average_train_error) / len(average_train_error)
     wandb.log({"average_train_error": average_train_error}, commit=False)
     print("average_train_error:", average_train_error)
@@ -140,5 +76,4 @@ def training_one_run():
 
     wandb.finish()
 
-sweep_id = wandb.sweep(sweep_config, project="FFA_test1")
-wandb.agent(sweep_id, function=training_one_run, count=1)
+training_one_run()

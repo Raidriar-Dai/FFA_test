@@ -1,0 +1,21 @@
+program: main_CIFAR.py
+method: random
+name: sweep_yaml
+metric:
+  goal: minimize
+  name: test_error
+parameters:
+  lr:
+    value: 0.03
+  threshold:
+    value: 2.0
+  num_epochs:
+    value: 1000
+  weight_decay:
+    value: 0.01
+  dropout:
+    value: 0.25
+  batch_size:
+    value: 5000
+  dims:
+    value: [3072, 1000, 1000, 1000]
