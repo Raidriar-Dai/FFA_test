@@ -1,6 +1,6 @@
 program: main_CIFAR.py
 method: random
-name: sweep_yaml
+name: CIFAR_minimize positive and maximize negative
 metric:
   goal: minimize
   name: test_error
