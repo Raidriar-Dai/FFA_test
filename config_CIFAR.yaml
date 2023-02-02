@@ -1,0 +1,21 @@
+program: main_CIFAR.py
+method: random
+name: CIFAR - global epochs - higher dropout
+metric:
+  goal: minimize
+  name: test error
+parameters:
+  lr:
+    value: 0.03
+  threshold:
+    value: 2.0
+  num_epochs:
+    value: 100
+  weight_decay:
+    value: 0.01
+  dropout:
+    value: 0.5
+  batch_size:
+    value: 5000
+  dims:
+    value: [3072, 2000, 2000, 1000]

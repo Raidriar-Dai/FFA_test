@@ -3,7 +3,7 @@ import torch.nn as nn
 from linear_layer import Layer, CIFAR_Layer
 from data_overlay import overlay_y_on_x
 
-# 全连接线性网络, 无 Dropout 层
+# Fully-connected Linear net, without dropout layer.
 class Net(torch.nn.Module):
 
     def __init__(self, dims, lr, threshold, num_epochs):
@@ -19,35 +19,18 @@ class Net(torch.nn.Module):
             h = overlay_y_on_x(x, label)
             goodness = []
             for layer in self.layers:
-                h = layer(h)
-                goodness += [h.pow(2).mean(1)]
+                if isinstance(layer, nn.Dropout):
+                    continue
+                else:
+                    h = layer(h)
+                    goodness += [h.pow(2).mean(1)]  # squared_mean 
             goodness_per_label += [sum(goodness).unsqueeze(1)]
         goodness_per_label = torch.cat(goodness_per_label, 1)
-        # return the index of the label with maximum accumulated goodness for each sample,
-        # as the final prediction for all testing samples.
-        return goodness_per_label.argmax(1)
+        # For each testing sample, return the index of the label with maximum / minimum accumulated goodness
+        # as the final prediction.
+        return goodness_per_label.argmax(1)     # MAXIMUM accumulated goodness
+        # return goodness_per_label.argmin(1)     # MINIMUM accumulated goodness
 
-    def forward_train(self, x_pos, x_neg):
-        h_pos, h_neg = x_pos, x_neg
-        for i, layer in enumerate(self.layers):
-            print('training layer', i, '...')
-            h_pos, h_neg = layer.train(h_pos, h_neg)
-
-
-# 全连接线性网络, 有 Dropout 层, 且每个线性层都有 weight_decay
-class CIFAR_Net(Net):
-    # Override INIT and TRAIN method of Net in order to implement Dropout
-    def __init__(self, dims, lr, threshold, num_epochs, weight_decay, dropout):
-        super(Net, self).__init__()
-        self.layers = []
-        for d in range(len(dims) - 1):
-            self.layers += [CIFAR_Layer(dims[d], dims[d + 1], lr, threshold, num_epochs, weight_decay).cuda()]
-            if len(dims) == 4 and d == 1 or len(dims) == 3 and d == 0:
-                # Apply dropback after the second layer (when there are 3 layers in total)
-                # Or, apply after the first layer (when there are 2 layers in total)
-                self.layers.append(nn.Dropout(dropout))    # Dropout modif 1
-
-    # Dropout modif 2
     def forward_train(self, x_pos, x_neg):
         h_pos, h_neg = x_pos, x_neg
         for i, layer in enumerate(self.layers):
@@ -57,3 +40,17 @@ class CIFAR_Net(Net):
             else:
                 print('training layer', i, '...')
                 h_pos, h_neg = layer.train(h_pos, h_neg)
+
+
+# Fully-connected Linear layer, with dropout layer and weight-decay.
+class CIFAR_Net(Net):
+    # Override INIT method of Net in order to implement Dropout
+    def __init__(self, dims, lr, threshold, num_epochs, weight_decay, dropout):
+        super(Net, self).__init__()
+        self.layers = []
+        for d in range(len(dims) - 1):
+            self.layers += [CIFAR_Layer(dims[d], dims[d + 1], lr, threshold, num_epochs, weight_decay).cuda()]
+            if len(dims) == 4 and d == 1 or len(dims) == 3 and d == 0:
+                # Apply dropback after the second layer (when there are 3 layers in total)
+                # Or, apply after the first layer (when there are 2 layers in total)
+                self.layers.append(nn.Dropout(dropout))    # Dropout modif 1

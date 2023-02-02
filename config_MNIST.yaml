@@ -1,0 +1,17 @@
+program: main_MNIST.py
+method: random
+name: MNIST squared_mean
+metric:
+  goal: minimize
+  name: test_error
+parameters:
+  lr:
+    value: 0.03
+  threshold:
+    value: 2.0
+  num_epochs:
+    value: 1000
+  batch_size:
+    value: 50000
+  dims:
+    value: [784, 500, 500]
