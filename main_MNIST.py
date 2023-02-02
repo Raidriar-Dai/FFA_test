@@ -5,51 +5,26 @@ from data_overlay import overlay_y_on_x
 from full_linear_net import Net
 
 import wandb
-sweep_config = {
-    'method': 'random',
-    'metric': {'name': 'test_error', 'goal': 'minimize'}
-}
-parameters_dict = {
-    'lr': {
-        'values': [0.01, 0.02, 0.03]
-    },
-    'threshold': {
-        'values': [1.0, 2.0, 3.0]
-    },
-    'num_epochs':{
-        'values': [1000, 1500, 2000]
-    },
-    'batch_size':{
-        'value': 50000
-    },
-    'seed':{
-        'value': 1234
-    },
-    'dims':{
-        'value': [784, 500, 500]
-    }
-}
-sweep_config['parameters'] = parameters_dict
-
+import yaml
 
 # 3.3 A simple supervised example of FF
 
+with open('/home/intern/scratch/qirundai/FFA13/FFA_test/config_MNIST.yaml') as file:
+    config = yaml.load(file, Loader=yaml.FullLoader)
+sweep_id = wandb.sweep(sweep=config, project='FFA_test1')
+
 def training_one_run():
-    # lr=0.03, threshold=2.0, num_epochs=1000, batch_size=50000, seed=1234, dims=[784, 500, 500]
 
     wandb.init(project="FFA_test1", entity="raidriar_dai")
-    # config = {"lr": lr, "threshold": threshold, "num_epochs": num_epochs,
-    #            "batch_size": batch_size, "seed": seed, "dims": dims})
 
-    # define hyper-parameters from `wandb.config`
-    seed = wandb.config.seed
+    # define hyper_parameters from wandb.config
     batch_size = wandb.config.batch_size
     dims = wandb.config.dims
     lr = wandb.config.lr
     threshold = wandb.config.threshold
     num_epochs = wandb.config.num_epochs
 
-    torch.manual_seed(seed)
+    torch.manual_seed(1234)
     train_loader, test_loader = MNIST_loaders(train_batch_size=batch_size)
 
     net = Net(dims, lr, threshold, num_epochs)
@@ -70,10 +45,13 @@ def training_one_run():
     test_error = 1.0 - net.predict(x_te).eq(y_te).float().mean().item()
     print('test error:', test_error)
 
-    wandb.log({"train_error": train_error, "test_error": test_error})
+    wandb.log({"train_error": train_error, 
+               "test_error": test_error})
+    wandb.finish()
 
-sweep_id = wandb.sweep(sweep_config, project="FFA_test1")
 wandb.agent(sweep_id, function=training_one_run, count=1)
+
+
 
 
 

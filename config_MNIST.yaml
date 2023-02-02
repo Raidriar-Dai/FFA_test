@@ -1,6 +1,6 @@
 program: main_MNIST.py
 method: random
-name: MNIST min_positive max_negative
+name: MNIST squared_mean
 metric:
   goal: minimize
   name: test_error
