@@ -4,6 +4,6 @@
 # by writing x.max() into the position which corresponds to the label value.
 def overlay_y_on_x(x, y):
     x_ = x.clone()
-    x_[:, :10] *= 0.0   # REPLACE the first 10 pixels by the label representation.
+    x_[:, :10] *= 0.0   # REPLACE the first 10 pixels with the label representation.
     x_[range(x.shape[0]), y] = x.max()
     return x_

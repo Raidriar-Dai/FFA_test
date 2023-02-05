@@ -9,10 +9,15 @@ import yaml
 
 # 4 Experiments with CIFAR-10
 
+with open('/home/intern/scratch/qirundai/FFA13/FFA_test/config_CIFAR.yaml') as file:
+    config = yaml.load(file, Loader=yaml.FullLoader)
+sweep_id = wandb.sweep(sweep=config, project='FFA_test1')
+
 def training_one_run():
-    with open('/home/intern/scratch/qirundai/FFA13/FFA_test/config_CIFAR.yaml') as file:
-        config = yaml.load(file, Loader=yaml.FullLoader)
-    wandb.init(project="FFA_test1", entity="raidriar_dai", config=config)
+    # with open('/home/intern/scratch/qirundai/FFA13/FFA_test/config_CIFAR.yaml') as file:
+    #     config = yaml.load(file, Loader=yaml.FullLoader)
+    # wandb.init(project="FFA_test1", entity="raidriar_dai", config=config)
+    wandb.init(project="FFA_test1", entity="raidriar_dai")
 
     # define hyper_parameters from wandb.config
     batch_size = wandb.config.batch_size
@@ -22,16 +27,16 @@ def training_one_run():
     num_epochs = wandb.config.num_epochs
     weight_decay = wandb.config.weight_decay
     dropout = wandb.config.dropout
+    global_epochs = wandb.config.global_epochs  # Number of epochs in global training process
 
     torch.manual_seed(1234)
-    global_epochs = 10  # Number of epochs in global training process
     net = CIFAR_Net(dims, lr, threshold, num_epochs, weight_decay, dropout)
     train_loader, test_loader = CIFAR_loaders(train_batch_size = batch_size)
     num_batches = len(train_loader)
-    
+
     # start sweeping with pre-defined hyper_parameters
     for epoch in range(global_epochs):
-        
+
         # Set the net as training mode (actually it's by default in training mode):
         net.train()
         average_train_error = []
@@ -65,17 +70,18 @@ def training_one_run():
         x_te, y_te = next(iter(test_loader))
         x_te, y_te = x_te.cuda(), y_te.cuda()
         test_error = 1.0 - net.predict(x_te).eq(y_te).float().mean().item()
-        
+
         wandb.log({
             "global epoch": epoch+1,
             "final batch error": batch_error,
             "average train error": average_train_error,
             "test error": test_error
             })
-        
+
         print(f"global epoch: {epoch+1}, average train error: {average_train_error:.3f}, "
               f"final batch error: {batch_error:.3f}, test error: {test_error:.3f}")
-    
+
     wandb.finish()
 
-training_one_run()
+# training_one_run()
+wandb.agent(sweep_id, function=training_one_run, count=10)
