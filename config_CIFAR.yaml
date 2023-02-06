@@ -1,22 +1,19 @@
 program: main_CIFAR.py
 method: random
-name: CIFAR10 - 10 runs
-description: 
-  increase global_epochs while decreasing num_epochs, to see if it will result in underfitting or overfitting.
+name: CIFAR10 - modified pipeline - to overfit
+description:
+  modify training pipeline, train layer by layer with no "global epoch".
 run_cap: 10
 metric:
   goal: minimize
   name: test error
 parameters:
   lr:
-    min: 0.025
-    max: 0.04
+    value: 0.03
   threshold:
     value: 2.0
   num_epochs:
-    values: [50, 75, 100]
-  global_epochs:
-    value: 20
+    value: 500
   weight_decay:
     value: 0.01
   dropout:
@@ -24,4 +21,4 @@ parameters:
   batch_size:
     value: 5000
   dims:
-    values: [[3072, 2000, 2000, 1000], [3072, 3072, 3072, 1536]]
+    value: [3072, 3072, 3072, 1536]

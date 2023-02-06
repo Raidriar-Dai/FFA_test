@@ -1,6 +1,6 @@
 program: main_MNIST.py
 method: random
-name: MNIST squared_mean
+name: MNIST - modified pipeline
 metric:
   goal: minimize
   name: test_error
@@ -10,8 +10,8 @@ parameters:
   threshold:
     value: 2.0
   num_epochs:
-    value: 1000
+    value: 100
   batch_size:
-    value: 50000
+    value: 5000
   dims:
     value: [784, 500, 500]
