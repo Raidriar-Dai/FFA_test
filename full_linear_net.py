@@ -29,7 +29,7 @@ class Net(torch.nn.Module):
                     continue
                 else:
                     h = layer(h)
-                    goodness += [h.pow(2).mean(1)]  # squared_mean 
+                    goodness += [h.pow(2).mean(1)]  # squared_mean
             goodness_per_label += [sum(goodness).unsqueeze(1)]
         goodness_per_label = torch.cat(goodness_per_label, 1)
         # For each testing sample, return the index of the label with maximum / minimum accumulated goodness
@@ -57,25 +57,45 @@ class Net(torch.nn.Module):
             # 该 layer 训练完毕后, 更新训练下一 layer 所要使用的 pos_loader 与 neg_loader
             # 注意: 为了消除传到下一层 layer 的 tensor 在前一层上 forward 的计算图, 需要用 Tensor.detach()
             # x_pos_all, x_neg_all = layer(x_pos_all).detach(), layer(x_neg_all).detach()
-            x_pos_all, x_neg_all = ([layer.forward(x_pos).detach() for x_pos in pos_loader], 
+            x_pos_all, x_neg_all = ([layer.forward(x_pos).detach() for x_pos in pos_loader],
                                     [layer.forward(x_neg).detach() for x_neg in neg_loader])
             x_pos_all, x_neg_all = torch.cat(x_pos_all, 0), torch.cat(x_neg_all, 0)
             pos_loader = DataLoader(Labeled_Dataset(x_pos_all), batch_size=self.batch_size, shuffle=True)
             neg_loader = DataLoader(Labeled_Dataset(x_neg_all), batch_size=self.batch_size, shuffle=True)
 
 
-
 # Fully-connected Linear layer, with dropout layer and weight-decay.
 class CIFAR_Net(Net):
-    # Override INIT method of Net in order to implement Dropout
+    # Override INIT method of Net in order to implement <Dropout> and <local_receptive_field>
     def __init__(self, dims, lr, threshold, num_epochs, batch_size, weight_decay, dropout):
         super(Net, self).__init__()
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.layers = []
+        self.mask = generate_mask().cuda()  # 整个 CIFAR_Net 的所有 layer 共享同一张 mask
         for d in range(len(dims) - 1):
-            self.layers += [CIFAR_Layer(dims[d], dims[d + 1], lr, threshold, weight_decay).cuda()]
-            if len(dims) == 4 and d == 1 or len(dims) == 3 and d == 0:
-                # Apply dropback after the second layer (when there are 3 layers in total)
-                # Or, apply after the first layer (when there are 2 layers in total)
+            self.layers += [CIFAR_Layer(dims[d], dims[d + 1], lr, threshold, weight_decay, self.mask).cuda()]
+            if (len(dims) == 4 and (d == 0 or d == 1)) or (len(dims) == 3 and d == 0):
+                # Apply dropback after the 1st and 2nd layer (when there are 3 layers in total)
+                # Or, apply after the 1st layer (when there are 2 layers in total)
                 self.layers.append(nn.Dropout(dropout))    # Dropout modif 1
+
+
+def generate_mask():
+    '''生成覆盖在 weight 矩阵上的 3072*3072 大小的蒙板(mask)'''
+    mask = torch.ones([3072, 3072], dtype=torch.bool)
+    for unit in range(1024):
+        # 生成针对 weight 矩阵 第 unit 行的 mask
+        i, j = unit // 32, unit % 32    # flattened tensor 中的索引位置 unit <--> 32*32*3 二维图像中的坐标位置 (i,j)
+        # 自定义 size 的 local receptive field 的坐标列表
+        coord_list = [(i-k1, j-k2) for k1 in range(-10,11) for k2 in range(-10,11)
+                        if (i-k1) >= 0 and (i-k1) <= 31 and (j-k2) >= 0 and (j-k2) <= 31]
+        # 坐标列表再化回 flattened 之后的索引列表
+        index_list = list(map(lambda x: 32 * x[0] + x[1], coord_list))
+        index_list = index_list + [index + 1024 for index in index_list] + [index + 2048 for index in index_list]
+        # 更新 mask 矩阵上 unit, unit + 1024, unit + 2048 这三行
+        for j in index_list:
+            mask[unit][j] = False
+            mask[unit + 1024][j] = False
+            mask[unit + 2048][j] = False
+    return mask
