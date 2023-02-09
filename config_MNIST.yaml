@@ -14,4 +14,4 @@ parameters:
   batch_size:
     value: 5000
   dims:
-    value: [784, 500, 500]
+    value: [784, 1000, 1000]
