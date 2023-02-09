@@ -22,24 +22,35 @@ def training_one_run():
     dims = wandb.config.dims
     lr = wandb.config.lr
     threshold = wandb.config.threshold
-    num_epochs = wandb.config.num_epochs
-
+    num_epochs = wandb.config.num_epochs    # 现在的 num_epochs 是每层 layer 的训练总次数
+    
+    # 默认 training batch size 为 50000
     torch.manual_seed(1234)
-    train_loader, test_loader = MNIST_loaders(train_batch_size=batch_size)
-
-    net = Net(dims, lr, threshold, num_epochs)
+    train_loader, test_loader = MNIST_loaders() 
+    # 提取出 train_loader 中所有的 samples, 用以生成 x_pos_all 与 x_neg_all
     x, y = next(iter(train_loader))
     x, y = x.cuda(), y.cuda()
-    # Generate positive data and negative data
-    x_pos = overlay_y_on_x(x, y)
+    x_pos_all = overlay_y_on_x(x, y)
     rnd = torch.randperm(x.size(0))
-    x_neg = overlay_y_on_x(x, y[rnd])
+    x_neg_all = overlay_y_on_x(x, y[rnd])
 
-    net.forward_train(x_pos, x_neg)
+    net = Net(dims, lr, threshold, num_epochs, batch_size)
+    
+    net.train()
+    net.forward_train(x_pos_all, x_neg_all)
 
-    train_error = 1.0 - net.predict(x).eq(y).float().mean().item()
+    # 对于已经完成所有 layer 训练的网络, 从训练集中取一组小批次数据, 来计算 train error
+    net.eval()
+    # torch.manual_seed(1234)
+    # train_eval_loader, _ = MNIST_loaders(train_batch_size=batch_size)
+    # x_eval, y_eval = next(iter(train_eval_loader))
+    # x_eval, y_eval = x_eval.cuda(), y_eval.cuda()
+    x_eval, y_eval = x[:batch_size], y[:batch_size]
+    train_error = 1.0 - net.predict(x_eval).eq(y_eval).float().mean().item()
     print('train error:', train_error)
 
+    # 最后取出所有测试集中的数据, 计算 test error
+    net.eval()
     x_te, y_te = next(iter(test_loader))
     x_te, y_te = x_te.cuda(), y_te.cuda()
     test_error = 1.0 - net.predict(x_te).eq(y_te).float().mean().item()
