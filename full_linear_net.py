@@ -51,12 +51,14 @@ class Net(torch.nn.Module):
                 print('training layer', i, '...')
                 for epoch in tqdm(range(self.num_epochs)):
                     # 每一份 x_pos 与 x_neg 都是一个 batch 的数据
+                    # 可能是因为, 在每个 epoch 之中, 同一个 pos_loader 与 neg_loader 中的数据(x_pos 与 x_neg)被反复调用,
+                    # 因此这些数据的计算图在每个 batch 之中不断累积, 导致随着 num_epoch 增大, 内存消耗增多?
+                    # 但是我在 layer.train() 函数之中, 会对输入的 x_pos 与 x_neg 用 .detach()
                     for x_pos, x_neg in zip(pos_loader, neg_loader):
                         x_pos, x_neg = x_pos.cuda(), x_neg.cuda()
                         layer.train(x_pos, x_neg)
             # 该 layer 训练完毕后, 更新训练下一 layer 所要使用的 pos_loader 与 neg_loader
             # 注意: 为了消除传到下一层 layer 的 tensor 在前一层上 forward 的计算图, 需要用 Tensor.detach()
-            # x_pos_all, x_neg_all = layer(x_pos_all).detach(), layer(x_neg_all).detach()
             x_pos_all, x_neg_all = ([layer.forward(x_pos).detach() for x_pos in pos_loader],
                                     [layer.forward(x_neg).detach() for x_neg in neg_loader])
             x_pos_all, x_neg_all = torch.cat(x_pos_all, 0), torch.cat(x_neg_all, 0)
