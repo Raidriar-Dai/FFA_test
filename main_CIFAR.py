@@ -66,4 +66,4 @@ def training_one_run():
     wandb.finish()
 
 # training_one_run()
-wandb.agent(sweep_id, function=training_one_run, count=7)
+wandb.agent(sweep_id, function=training_one_run, count=3)

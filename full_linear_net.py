@@ -90,7 +90,7 @@ def generate_mask():
         # 生成针对 weight 矩阵 第 unit 行的 mask
         i, j = unit // 32, unit % 32    # flattened tensor 中的索引位置 unit <--> 32*32*3 二维图像中的坐标位置 (i,j)
         # 自定义 size 的 local receptive field 的坐标列表
-        coord_list = [(i-k1, j-k2) for k1 in range(-10,11) for k2 in range(-10,11)
+        coord_list = [(i-k1, j-k2) for k1 in range(-5,6) for k2 in range(-5,6)
                         if (i-k1) >= 0 and (i-k1) <= 31 and (j-k2) >= 0 and (j-k2) <= 31]
         # 坐标列表再化回 flattened 之后的索引列表
         index_list = list(map(lambda x: 32 * x[0] + x[1], coord_list))
