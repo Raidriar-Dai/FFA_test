@@ -1,17 +1,19 @@
 program: main_MNIST.py
 method: random
-name: MNIST - modified pipeline
+name: MNIST - 4 layers(each containing 2000 ReLUs), 200/500 epochs, 0.01-0.06 lr, 5000 batch_size
 metric:
   goal: minimize
-  name: test_error
+  name: test error
 parameters:
   lr:
-    value: 0.03
+    # small lr probably works better.
+    min: 0.01
+    max: 0.06
   threshold:
     value: 2.0
   num_epochs:
-    value: 100
+    values: [200, 500]
   batch_size:
     value: 5000
   dims:
-    value: [784, 1000, 1000]
+    value: [784, 2000, 2000, 2000, 2000]

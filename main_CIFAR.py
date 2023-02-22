@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from data_load import CIFAR_loaders
 from data_overlay import overlay_y_on_x
-from full_linear_net import CIFAR_Net
+from full_linear_net import CIFAR_Net, CIFAR_LocalReceptiveNet, CIFAR_DropoutNet
 
 import wandb
 import yaml
@@ -26,11 +26,13 @@ def training_one_run():
     threshold = wandb.config.threshold
     num_epochs = wandb.config.num_epochs
     weight_decay = wandb.config.weight_decay
-    dropout = wandb.config.dropout
+    receptive_size = wandb.config.receptive_size
+    # dropout = wandb.config.dropout
 
-    # 默认 training batch size 为 50000
+    # 默认的 training batch size 为 50000
     torch.manual_seed(1234)
-    train_loader, test_loader = CIFAR_loaders()
+    # train_loader, test_loader = CIFAR_loaders()
+    train_loader, test_loader = CIFAR_loaders(test_batch_size=5000)
     # 提取出 train_loader 中所有的 samples, 用以生成 x_pos_all 与 x_neg_all
     x, y = next(iter(train_loader))
     x, y = x.cuda(), y.cuda()
@@ -38,7 +40,9 @@ def training_one_run():
     rnd = torch.randperm(x.size(0))
     x_neg_all = overlay_y_on_x(x, y[rnd])
 
-    net = CIFAR_Net(dims, lr, threshold, num_epochs, batch_size, weight_decay, dropout)
+    # net = CIFAR_Net(dims, lr, threshold, num_epochs, batch_size, weight_decay)
+    net = CIFAR_LocalReceptiveNet(dims, lr, threshold, num_epochs, batch_size, weight_decay, receptive_size)
+    # net = CIFAR_DropoutNet(dims, lr, threshold, num_epochs, batch_size, weight_decay, dropout)
 
     # 把 x_pos_all 与 x_neg_all 送入 forward_train 函数, 其余训练过程均封装在该函数中
     net.train()
@@ -55,10 +59,18 @@ def training_one_run():
     print('train error:', train_error)
 
     # 最后取出所有测试集中的数据, 计算 test error
+    # 若是 test_loader 的 batch_size 取 10000, 则太大, 12G 显存不够
+    # net.eval()
+    # x_te, y_te = next(iter(test_loader))
+    # x_te, y_te = x_te.cuda(), y_te.cuda()
+    # test_error = 1.0 - net.predict(x_te).eq(y_te).float().mean().item()
+    # print('test error:', test_error)
     net.eval()
-    x_te, y_te = next(iter(test_loader))
-    x_te, y_te = x_te.cuda(), y_te.cuda()
-    test_error = 1.0 - net.predict(x_te).eq(y_te).float().mean().item()
+    test_error = []
+    for x_te, y_te in test_loader:
+        x_te, y_te = x_te.cuda(), y_te.cuda()
+        test_error.append(1.0 - net.predict(x_te).eq(y_te).float().mean().item())
+    test_error = sum(test_error) / len(test_error)
     print('test error:', test_error)
 
     wandb.log({"train error": train_error,

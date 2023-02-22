@@ -23,7 +23,7 @@ def training_one_run():
     lr = wandb.config.lr
     threshold = wandb.config.threshold
     num_epochs = wandb.config.num_epochs    # 现在的 num_epochs 是每层 layer 的训练总次数
-    
+
     # 默认 training batch size 为 50000
     torch.manual_seed(1234)
     train_loader, test_loader = MNIST_loaders() 
@@ -35,7 +35,7 @@ def training_one_run():
     x_neg_all = overlay_y_on_x(x, y[rnd])
 
     net = Net(dims, lr, threshold, num_epochs, batch_size)
-    
+
     net.train()
     net.forward_train(x_pos_all, x_neg_all)
 
@@ -56,13 +56,8 @@ def training_one_run():
     test_error = 1.0 - net.predict(x_te).eq(y_te).float().mean().item()
     print('test error:', test_error)
 
-    wandb.log({"train_error": train_error, 
-               "test_error": test_error})
+    wandb.log({"train error": train_error, 
+               "test error": test_error})
     wandb.finish()
 
 wandb.agent(sweep_id, function=training_one_run, count=1)
-
-
-
-
-
