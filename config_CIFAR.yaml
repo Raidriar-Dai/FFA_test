@@ -1,6 +1,6 @@
 program: main_CIFAR.py
 method: random
-name: CIFAR10 - local receptive - size 11*11(2000 epochs, 0.08-0.15 lr, 2500 batch size)
+name: CIFAR10 - compare with previous local receptive results(0.03 lr, 100 epochs, [3072,3072,3072])
 description:
   To overfit on 11*11 local receptive field.
 run_cap: 10
@@ -9,17 +9,19 @@ metric:
   name: test error
 parameters:
   lr:
-    min: 0.08
-    max: 0.15
+    min: 0.06
+    max: 0.1
   threshold:
     value: 2.0
   num_epochs:
-    value: 2000  # 4000 is too big and will cause Cuda-out-of-memory.
+    values: [1000, 2000]  # 4000 is too big and will cause Cuda-out-of-memory.
   weight_decay:
     value: 0.01
-  dropout:
-    value: 0.0
   batch_size:
-    value: 2500
+    value: 5000
   dims:
-    value: [3072, 3072, 3072, 3072]
+    value: [3072, 3072, 3072, 3072, 10]
+  receptive_size:
+    value: 11
+  # dropout:
+  #   value: 0.5
