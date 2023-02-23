@@ -59,10 +59,14 @@ class Net(torch.nn.Module):
                         x_pos, x_neg = x_pos.cuda(), x_neg.cuda()
                         layer.train(x_pos, x_neg)
             # 该 layer 训练完毕后, 更新训练下一 layer 所要使用的 pos_loader 与 neg_loader
-            # 注意: 为了消除传到下一层 layer 的 tensor 在前一层上 forward 的计算图, 需要用 Tensor.detach()
-            x_pos_all, x_neg_all = ([layer.forward(x_pos).detach() for x_pos in pos_loader],
-                                    [layer.forward(x_neg).detach() for x_neg in neg_loader])
-            x_pos_all, x_neg_all = torch.cat(x_pos_all, 0), torch.cat(x_neg_all, 0)
+            # 注意1: 为了消除传到下一层 layer 的 tensor 在前一层上 forward 的计算图, 需要用 Tensor.detach()
+            # 注意2: 虽然加了 detach 后能够解除 tensor 与之前的计算图的绑定关系, 但并不会释放之前的计算图,
+            # 那一部分计算图就留存了下来没有被释放; 一般只有 backward() 方法作用后, 才会释放计算图.
+            # 因此这里要把梯度关掉, 就不会保存之前诸多 layer 的梯度, 也即不会保存之前诸多 layer 的计算图.
+            with torch.no_grad():
+                x_pos_all, x_neg_all = ([layer.forward(x_pos).detach() for x_pos in pos_loader],
+                                        [layer.forward(x_neg).detach() for x_neg in neg_loader])
+                x_pos_all, x_neg_all = torch.cat(x_pos_all, 0), torch.cat(x_neg_all, 0)
             pos_loader = DataLoader(Labeled_Dataset(x_pos_all), batch_size=self.batch_size, shuffle=True)
             neg_loader = DataLoader(Labeled_Dataset(x_neg_all), batch_size=self.batch_size, shuffle=True)
 
